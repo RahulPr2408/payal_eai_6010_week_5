@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MNIST Digit Classifier</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .upload-box { border: 2px dashed #ccc; padding: 20px; text-align: center; margin-bottom: 20px; }
+        .result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        .error { color: red; margin: 10px 0; }
+        img { max-width: 100%; height: auto; display: block; margin: 10px auto; }
+        button { padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>MNIST Digit Classifier</h1>
+    
+    <!-- Error Messages -->
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="error">
+                {% for message in messages %}
+                    {{ message }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Upload Form -->
+    <form method="post" enctype="multipart/form-data">
+        <div class="upload-box">
+            <input type="file" name="file" accept="image/*" required>
+            <button type="submit">Predict Digit</button>
+        </div>
+    </form>
+
+    <!-- Results -->
+    {% if success and filename and prediction is not none %}
+    <div class="result">
+        <h3>Prediction Result:</h3>
+        <img src="{{ url_for('static', filename='uploads/' + filename) }}" width="200">
+        <p>The predicted digit is: <strong>{{ prediction }}</strong></p>
+    </div>
+    {% endif %}
+</body>
+</html>
