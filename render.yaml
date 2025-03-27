@@ -3,11 +3,21 @@ services:
     name: mnist-lite
     runtime: python
     buildCommand: |
-      pip install -r requirements.txt
-      python -c "import tensorflow as tf; print(tf.__version__)"
-    startCommand: gunicorn app:app --timeout 120 --workers 1
+      pip install --upgrade pip && \
+      pip install -r requirements.txt --no-cache-dir
+    startCommand: |
+      gunicorn app:app \
+        --timeout 120 \
+        --workers 1 \
+        --threads 2 \
+        --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.7
       - key: TF_CPP_MIN_LOG_LEVEL
-        value: 2
+        value: 2  # Suppress TensorFlow debug logs
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /health
+    autoDeploy: true
+    plan: free  # Explicitly set to free tier
