@@ -1,89 +1,106 @@
 import os
+import logging
 from flask import Flask, render_template, request, flash, redirect, url_for
 import numpy as np
-from tensorflow.keras.models import load_model
 from PIL import Image
 from werkzeug.utils import secure_filename
+import tensorflow as tf
 
+# Initialize Flask
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Better secret key generation
+app.secret_key = os.urandom(24)
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Load model with optimizations
+# Load TensorFlow Lite model
 try:
-    model = load_model('model/mnist_model.h5', compile=False)
-    model._make_predict_function()  # Required for thread safety
-    print("Model loaded successfully")
+    interpreter = tf.lite.Interpreter(model_path='model/mnist.tflite')
+    interpreter.allocate_tensors()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    logger.info("✅ TensorFlow Lite model loaded successfully")
 except Exception as e:
-    print(f"Model loading failed: {str(e)}")
-    model = None
+    logger.error(f"❌ Model loading failed: {str(e)}")
+    interpreter = None
 
 def preprocess_image(file_stream):
-    """Process image directly from file stream without saving"""
+    """Process image directly from file stream"""
     try:
-        img = Image.open(file_stream).convert('L')  # Convert to grayscale
-        img = img.resize((28, 28))                 # Resize to 28x28
-        img_array = np.array(img) / 255.0          # Normalize pixel values
-        return img_array.reshape(1, 28, 28)        # Add batch dimension
+        img = Image.open(file_stream).convert('L').resize((28, 28))
+        img_array = np.array(img, dtype=np.float32) / 255.0
+        return img_array.reshape(1, 28, 28)
     except Exception as e:
-        print(f"Image processing error: {str(e)}")
+        logger.error(f"❌ Image processing error: {str(e)}")
         return None
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render"""
+    return "OK", 200
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        # Check if file was uploaded
         if 'file' not in request.files:
             flash('No file selected')
             return redirect(request.url)
             
         file = request.files['file']
         
-        # Check if filename is empty
         if file.filename == '':
             flash('No file selected')
             return redirect(request.url)
             
         try:
-            # Verify model is loaded
-            if model is None:
+            if interpreter is None:
                 flash('Model not loaded - contact administrator')
                 return redirect(request.url)
                 
-            # Process image directly from memory
             img_array = preprocess_image(file.stream)
             if img_array is None:
-                flash('Invalid image format - please upload a valid image')
+                flash('Invalid image format')
                 return redirect(request.url)
             
-            # Make prediction with timeout handling
-            prediction = model.predict(img_array, batch_size=1)
+            # TensorFlow Lite prediction
+            interpreter.set_tensor(input_details[0]['index'], img_array)
+            interpreter.invoke()
+            prediction = interpreter.get_tensor(output_details[0]['index'])
             digit = int(np.argmax(prediction))
             
-            # Only save file after successful processing
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+            # Save file only if needed
+            if app.config['UPLOAD_FOLDER']:
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             
             return render_template('index.html', 
-                                filename=filename, 
-                                prediction=digit,
-                                success=True)
-                                
+                               filename=file.filename,
+                               prediction=digit,
+                               success=True)
+                               
         except Exception as e:
-            print(f"Prediction error: {str(e)}")
-            flash('Error processing image - please try another file')
+            logger.exception("Prediction failed")
+            flash('Server error during prediction')
             return redirect(request.url)
     
     return render_template('index.html', success=False)
 
+@app.errorhandler(500)
+def internal_error(e):
+    logger.error(f"500 Error: {str(e)}")
+    return render_template('index.html', 
+                         error_message="Internal server error", 
+                         success=False), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)

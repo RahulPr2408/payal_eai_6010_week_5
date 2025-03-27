@@ -1,10 +1,13 @@
 services:
   - type: web
-    name: mnist-classifier
+    name: mnist-lite
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "import tensorflow as tf; print(tf.__version__)"
+    startCommand: gunicorn app:app --timeout 120 --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.7
-    staticDir: static/uploads/
+      - key: TF_CPP_MIN_LOG_LEVEL
+        value: 2
