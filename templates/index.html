@@ -15,17 +15,6 @@
 <body>
     <h1>MNIST Digit Classifier</h1>
     
-    <!-- Error Messages -->
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="error">
-                {% for message in messages %}
-                    {{ message }}
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    
     <!-- Upload Form -->
     <form method="post" enctype="multipart/form-data">
         <div class="upload-box">
@@ -35,7 +24,7 @@
     </form>
 
     <!-- Results -->
-    {% if success and filename and prediction is not none %}
+    {% if show_result and filename and prediction is not none %}
     <div class="result">
         <h3>Prediction Result:</h3>
         <img src="{{ url_for('static', filename='uploads/' + filename) }}" width="200">
