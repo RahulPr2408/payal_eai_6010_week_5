@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mnist-lite
+    name: mnist-app
     runtime: python
     buildCommand: |
       pip install --upgrade pip && \
@@ -9,15 +9,12 @@ services:
       gunicorn app:app \
         --timeout 120 \
         --workers 1 \
-        --threads 2 \
+        --threads 1 \
         --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.7
       - key: TF_CPP_MIN_LOG_LEVEL
-        value: 2  # Suppress TensorFlow debug logs
-      - key: FLASK_ENV
-        value: production
+        value: 2
     healthCheckPath: /health
-    autoDeploy: true
-    plan: free  # Explicitly set to free tier
+    plan: free
